@@ -26,37 +26,37 @@ export function HeroSection() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 text-center px-6 max-w-5xl">
-        <h1 className="text-5xl md:text-6xl lg:text-7xl text-white mb-6 font-light tracking-tight leading-tight">
+      <div className="relative z-10 text-center px-4 md:px-6 max-w-5xl w-full">
+        <h1 className="text-4xl md:text-6xl lg:text-7xl text-white mb-4 md:mb-6 font-light tracking-tight leading-tight">
           Experience a Peaceful<br />Goan Farm Stay
         </h1>
-        <p className="text-xl md:text-2xl text-white/90 mb-14 font-light">
+        <p className="text-lg md:text-2xl text-white/90 mb-10 md:mb-14 font-light">
           Private retreat for up to 15 guests
         </p>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-5 max-w-2xl mx-auto">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-5 max-w-2xl mx-auto">
           <button
             onClick={() => scrollToSection('booking')}
-            className="group relative bg-white hover:bg-gray-50 text-gray-900 px-8 py-5 rounded-2xl transition-all w-full sm:w-auto shadow-2xl hover:shadow-3xl hover:scale-105"
+            className="group relative bg-white hover:bg-gray-50 text-gray-900 px-6 py-4 md:px-8 md:py-5 rounded-xl md:rounded-2xl transition-all w-full sm:w-auto shadow-2xl hover:shadow-3xl hover:scale-105"
           >
-            <span className="block font-semibold text-lg mb-1">Book Day Out</span>
-            <span className="block text-sm text-gray-600">9:30 AM - 5:30 PM</span>
+            <span className="block font-semibold text-base md:text-lg mb-0.5 md:mb-1">Book Day Out</span>
+            <span className="block text-xs md:text-sm text-gray-600">9:30 AM - 5:30 PM</span>
           </button>
           <button
             onClick={() => scrollToSection('booking')}
-            className="group relative bg-green-800 hover:bg-green-900 text-white px-8 py-5 rounded-2xl transition-all w-full sm:w-auto shadow-2xl hover:shadow-3xl hover:scale-105"
+            className="group relative bg-green-800 hover:bg-green-900 text-white px-6 py-4 md:px-8 md:py-5 rounded-xl md:rounded-2xl transition-all w-full sm:w-auto shadow-2xl hover:shadow-3xl hover:scale-105"
           >
-            <span className="block font-semibold text-lg mb-1">Book Night Stay</span>
-            <span className="block text-sm text-white/90">6:30 PM - 9:00 AM</span>
+            <span className="block font-semibold text-base md:text-lg mb-0.5 md:mb-1">Book Night Stay</span>
+            <span className="block text-xs md:text-sm text-white/90">6:30 PM - 9:00 AM</span>
           </button>
         </div>
       </div>
 
       {/* Scroll Indicator */}
-      <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 z-10 animate-bounce">
-        <div className="w-6 h-10 border-2 border-white/50 rounded-full flex items-start justify-center p-2">
-          <div className="w-1.5 h-1.5 bg-white/70 rounded-full"></div>
+      <div className="absolute bottom-8 md:bottom-10 left-1/2 transform -translate-x-1/2 z-10 animate-bounce">
+        <div className="w-5 h-8 md:w-6 md:h-10 border-2 border-white/50 rounded-full flex items-start justify-center p-1.5 md:p-2">
+          <div className="w-1 h-1 md:w-1.5 md:h-1.5 bg-white/70 rounded-full"></div>
         </div>
       </div>
     </section>

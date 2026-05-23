@@ -136,49 +136,50 @@ export function BookingCalendar() {
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div className="py-24 px-6 bg-stone-50">
+    <div className="py-16 md:py-24 px-4 md:px-6 bg-stone-50">
       <div className="max-w-7xl mx-auto">
         {/* Title */}
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl lg:text-6xl text-gray-900 mb-4 font-light tracking-tight">
+        <div className="text-center mb-10 md:mb-16">
+          <h2 className="text-3xl md:text-5xl lg:text-6xl text-gray-900 mb-3 md:mb-4 font-light tracking-tight">
             Check Availability
           </h2>
-          <div className="w-20 h-1 bg-green-800 mx-auto"></div>
+          <div className="w-16 md:w-20 h-1 bg-green-800 mx-auto"></div>
         </div>
 
-        <div className="grid lg:grid-cols-[1.4fr_1fr] gap-10">
+        <div className="grid lg:grid-cols-[1.4fr_1fr] gap-8 lg:gap-10">
           {/* Left: Calendar */}
-          <div className="bg-white rounded-3xl shadow-lg p-8 border border-gray-100">
+          <div className="bg-white rounded-3xl shadow-lg p-5 md:p-8 border border-gray-100">
             {/* Month Navigation */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-6 md:mb-8">
               <button
                 onClick={previousMonth}
-                className="p-2.5 hover:bg-stone-50 rounded-xl transition-colors"
+                className="p-2 md:p-2.5 hover:bg-stone-50 rounded-xl transition-colors"
               >
-                <ChevronLeft className="w-6 h-6 text-gray-700" />
+                <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
               </button>
-              <h3 className="text-2xl font-medium text-gray-900">
+              <h3 className="text-xl md:text-2xl font-medium text-gray-900">
                 {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
               </h3>
               <button
                 onClick={nextMonth}
-                className="p-2.5 hover:bg-stone-50 rounded-xl transition-colors"
+                className="p-2 md:p-2.5 hover:bg-stone-50 rounded-xl transition-colors"
               >
-                <ChevronRight className="w-6 h-6 text-gray-700" />
+                <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
               </button>
             </div>
 
             {/* Day Names */}
-            <div className="grid grid-cols-7 gap-2 mb-3">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 md:mb-3">
               {dayNames.map(day => (
-                <div key={day} className="text-center font-medium text-gray-500 text-sm py-2">
-                  {day}
+                <div key={day} className="text-center font-medium text-gray-500 text-xs md:text-sm py-1 md:py-2">
+                  <span className="hidden sm:inline">{day}</span>
+                  <span className="sm:hidden">{day.charAt(0)}</span>
                 </div>
               ))}
             </div>
 
             {/* Calendar Days */}
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {Array.from({ length: startingDayOfWeek }).map((_, index) => (
                 <div key={`empty-${index}`} />
               ))}
@@ -198,7 +199,7 @@ export function BookingCalendar() {
                     onClick={() => handleDateClick(day)}
                     disabled={isPast || isFullyBooked}
                     className={`
-                      aspect-square p-3 rounded-xl text-center transition-all font-medium relative
+                      aspect-square p-1 sm:p-2 md:p-3 rounded-xl text-center transition-all font-medium relative text-sm md:text-base
                       ${isPast || isFullyBooked ? 'text-gray-300 cursor-not-allowed bg-gray-50' : 'hover:bg-green-50 cursor-pointer text-gray-700'}
                       ${isSelected ? 'bg-green-800 text-white hover:bg-green-900 shadow-md' : ''}
                     `}
@@ -214,16 +215,16 @@ export function BookingCalendar() {
           </div>
 
           {/* Right: Booking Panel */}
-          <div className="space-y-6">
+          <div className="space-y-5 md:space-y-6">
             {selectedSlot ? (
               <>
                 {/* Selected Date */}
-                <div className="bg-white rounded-3xl shadow-lg p-6 border border-gray-100">
-                  <div className="flex items-center gap-3 mb-4">
+                <div className="bg-white rounded-3xl shadow-lg p-5 md:p-6 border border-gray-100">
+                  <div className="flex items-center gap-3 mb-3 md:mb-4">
                     <CalendarCheck className="w-5 h-5 text-green-800" />
                     <h4 className="font-medium text-gray-900">Selected Date</h4>
                   </div>
-                  <p className="text-lg text-gray-700">
+                  <p className="text-base md:text-lg text-gray-700">
                     {selectedSlot.date.toLocaleDateString('en-US', {
                       weekday: 'long',
                       month: 'long',
@@ -234,13 +235,13 @@ export function BookingCalendar() {
                 </div>
 
                 {/* Slot Selection - Radio Style */}
-                <div className="bg-white rounded-3xl shadow-lg p-6 border border-gray-100">
-                  <h4 className="font-medium text-gray-900 mb-4">Select Time Slot</h4>
+                <div className="bg-white rounded-3xl shadow-lg p-5 md:p-6 border border-gray-100">
+                  <h4 className="font-medium text-gray-900 mb-3 md:mb-4">Select Time Slot</h4>
 
                   <div className="space-y-3">
                     {/* Day Out Radio */}
                     <label
-                      className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                      className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-2xl border-2 cursor-pointer transition-all ${
                         selectedSlot.type === 'day'
                           ? 'border-green-800 bg-green-50'
                           : 'border-gray-200 hover:border-gray-300'
@@ -252,14 +253,14 @@ export function BookingCalendar() {
                         checked={selectedSlot.type === 'day'}
                         onChange={() => setSelectedSlot({ ...selectedSlot, type: 'day' })}
                         disabled={!isSlotAvailable(selectedSlot.date.getDate(), 'day')}
-                        className="w-5 h-5 text-green-800 focus:ring-green-800"
+                        className="w-4 h-4 md:w-5 md:h-5 text-green-800 focus:ring-green-800 flex-shrink-0"
                       />
-                      <Sun className="w-5 h-5 text-amber-600" />
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">Day Out</p>
-                        <p className="text-sm text-gray-600">9:30 AM - 5:30 PM</p>
+                      <Sun className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm md:text-base truncate">Day Out</p>
+                        <p className="text-xs md:text-sm text-gray-600 truncate">9:30 AM - 5:30 PM</p>
                       </div>
-                      <span className={`text-sm font-medium ${
+                      <span className={`text-xs md:text-sm font-medium flex-shrink-0 ${
                         isSlotAvailable(selectedSlot.date.getDate(), 'day')
                           ? 'text-green-700'
                           : 'text-gray-500'
@@ -270,7 +271,7 @@ export function BookingCalendar() {
 
                     {/* Night Stay Radio */}
                     <label
-                      className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                      className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-2xl border-2 cursor-pointer transition-all ${
                         selectedSlot.type === 'night'
                           ? 'border-green-800 bg-green-50'
                           : 'border-gray-200 hover:border-gray-300'
@@ -282,14 +283,14 @@ export function BookingCalendar() {
                         checked={selectedSlot.type === 'night'}
                         onChange={() => setSelectedSlot({ ...selectedSlot, type: 'night' })}
                         disabled={!isSlotAvailable(selectedSlot.date.getDate(), 'night')}
-                        className="w-5 h-5 text-green-800 focus:ring-green-800"
+                        className="w-4 h-4 md:w-5 md:h-5 text-green-800 focus:ring-green-800 flex-shrink-0"
                       />
-                      <Moon className="w-5 h-5 text-indigo-600" />
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">Night Stay</p>
-                        <p className="text-sm text-gray-600">6:30 PM - 9:00 AM</p>
+                      <Moon className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm md:text-base truncate">Night Stay</p>
+                        <p className="text-xs md:text-sm text-gray-600 truncate">6:30 PM - 9:00 AM</p>
                       </div>
-                      <span className={`text-sm font-medium ${
+                      <span className={`text-xs md:text-sm font-medium flex-shrink-0 ${
                         isSlotAvailable(selectedSlot.date.getDate(), 'night')
                           ? 'text-green-700'
                           : 'text-gray-500'
@@ -301,7 +302,7 @@ export function BookingCalendar() {
                 </div>
 
                 {/* Guest Count */}
-                <div className="bg-white rounded-3xl shadow-lg p-6 border border-gray-100">
+                <div className="bg-white rounded-3xl shadow-lg p-5 md:p-6 border border-gray-100">
                   <label className="flex items-center gap-3 mb-3 font-medium text-gray-900">
                     <Users className="w-5 h-5 text-green-800" />
                     Number of People (1-15)
@@ -309,7 +310,7 @@ export function BookingCalendar() {
                   <select
                     value={guestCount}
                     onChange={(e) => setGuestCount(Number(e.target.value))}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-800 focus:outline-none text-lg"
+                    className="w-full px-3 py-2.5 md:px-4 md:py-3 border-2 border-gray-200 rounded-xl focus:border-green-800 focus:outline-none text-base md:text-lg"
                   >
                     {Array.from({ length: 15 }, (_, i) => i + 1).map(num => (
                       <option key={num} value={num}>{num} {num === 1 ? 'Guest' : 'Guests'}</option>
@@ -318,21 +319,21 @@ export function BookingCalendar() {
                 </div>
 
                 {/* Payment Summary */}
-                <div className="bg-gradient-to-br from-green-800 to-green-900 rounded-3xl shadow-xl p-6 text-white">
-                  <h4 className="font-medium mb-4 text-white/90">Payment Summary</h4>
-                  <div className="space-y-3 mb-6">
+                <div className="bg-gradient-to-br from-green-800 to-green-900 rounded-3xl shadow-xl p-5 md:p-6 text-white">
+                  <h4 className="font-medium mb-3 md:mb-4 text-white/90">Payment Summary</h4>
+                  <div className="space-y-3 mb-5 md:mb-6">
                     <div className="flex justify-between items-center">
                       <span className="text-white/80">Total</span>
-                      <span className="text-2xl font-semibold">₹3,000</span>
+                      <span className="text-xl md:text-2xl font-semibold">₹3,000</span>
                     </div>
                     <div className="border-t border-white/20 pt-3">
                       <div className="flex justify-between items-center mb-2">
-                        <span className="text-white/80">Pay Now (Advance)</span>
-                        <span className="text-xl font-medium">₹1,500</span>
+                        <span className="text-sm md:text-base text-white/80">Pay Now (Advance)</span>
+                        <span className="text-lg md:text-xl font-medium">₹1,500</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-white/80">Balance at Farm</span>
-                        <span className="text-xl font-medium">₹1,500</span>
+                        <span className="text-sm md:text-base text-white/80">Balance at Farm</span>
+                        <span className="text-lg md:text-xl font-medium">₹1,500</span>
                       </div>
                     </div>
                   </div>
@@ -340,17 +341,17 @@ export function BookingCalendar() {
                   <button
                     onClick={handleCheckout}
                     disabled={guestCount < 1 || guestCount > 15 || !isSlotAvailable(selectedSlot.date.getDate(), selectedSlot.type)}
-                    className="w-full bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-green-900 py-4 rounded-2xl font-semibold text-lg transition-colors shadow-lg"
+                    className="w-full bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-green-900 py-3 md:py-4 rounded-2xl font-semibold text-base md:text-lg transition-colors shadow-lg"
                   >
                     Pay ₹1,500 Advance to Book
                   </button>
                 </div>
               </>
             ) : (
-              <div className="bg-white rounded-3xl p-10 text-center border-2 border-dashed border-gray-200 min-h-[400px] flex items-center justify-center">
+              <div className="bg-white rounded-3xl p-6 md:p-10 text-center border-2 border-dashed border-gray-200 min-h-[300px] md:min-h-[400px] flex items-center justify-center">
                 <div>
-                  <CalendarCheck className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500 text-lg">Select a date from the calendar to continue</p>
+                  <CalendarCheck className="w-12 h-12 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" />
+                  <p className="text-gray-500 text-base md:text-lg">Select a date from the calendar to continue</p>
                 </div>
               </div>
             )}
