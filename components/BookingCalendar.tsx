@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { ChevronLeft, ChevronRight, Sun, Moon, Users, CalendarCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sun, Moon, Users, CalendarCheck, ArrowLeft, User, Mail, Phone } from 'lucide-react';
 
 // Initialize Supabase client using environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -26,11 +26,18 @@ export function BookingCalendar() {
   const [selectedSlot, setSelectedSlot] = useState<SelectedSlot | null>(null);
   const [guestCount, setGuestCount] = useState(2);
   const [bookedSlots, setBookedSlots] = useState<Record<string, BookingSlot>>({});
+  
+  // New State for Multi-Step Checkout
+  const [checkoutStep, setCheckoutStep] = useState(1);
+  const [customerDetails, setCustomerDetails] = useState({
+    name: '',
+    email: '',
+    phone: ''
+  });
 
   // Fetch live availability from Supabase
   useEffect(() => {
     async function fetchAvailability() {
-      // Calculate date range for the current calendar view
       const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
       const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
       
@@ -81,11 +88,13 @@ export function BookingCalendar() {
   const previousMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
     setSelectedSlot(null);
+    setCheckoutStep(1); // Reset step if month changes
   };
 
   const nextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
     setSelectedSlot(null);
+    setCheckoutStep(1); // Reset step if month changes
   };
 
   const isDatePast = (day: number) => {
@@ -109,10 +118,10 @@ export function BookingCalendar() {
     const dateKey = getDateKey(day);
     const booking = bookedSlots[dateKey];
     
-    // Auto-select first available slot based on database
     const defaultSlot: SlotType = !booking?.day ? 'day' : !booking?.night ? 'night' : 'day';
 
     setSelectedSlot({ date, type: defaultSlot });
+    setCheckoutStep(1); // Ensure we go back to step 1 if selecting a new date
   };
 
   const isSlotAvailable = (day: number, slot: SlotType): boolean => {
@@ -122,10 +131,14 @@ export function BookingCalendar() {
     return !booking[slot];
   };
 
-  const handleCheckout = () => {
-    if (!selectedSlot || guestCount < 1 || guestCount > 15) return;
+  const isFormValid = customerDetails.name.trim() !== '' && 
+                      customerDetails.email.trim() !== '' && 
+                      customerDetails.phone.trim() !== '';
 
-    alert(`Redirecting to payment gateway...\n\nBooking Details:\nDate: ${selectedSlot.date.toLocaleDateString()}\nSlot: ${selectedSlot.type === 'day' ? 'Day Out (9:30 AM - 5:30 PM)' : 'Night Stay (6:30 PM - 9:00 AM)'}\nGuests: ${guestCount}\nAdvance Payment: ₹1,500`);
+  const handleCheckout = () => {
+    if (!selectedSlot || !isFormValid) return;
+
+    alert(`Redirecting to payment gateway...\n\nName: ${customerDetails.name}\nEmail: ${customerDetails.email}\nPhone: ${customerDetails.phone}\nDate: ${selectedSlot.date.toLocaleDateString()}\nSlot: ${selectedSlot.type === 'day' ? 'Day Out' : 'Night Stay'}\nGuests: ${guestCount}\nAmount to Pay: ₹1,500 (Advance)`);
   };
 
   const monthNames = [
@@ -190,7 +203,6 @@ export function BookingCalendar() {
                 const isSelected = selectedSlot?.date.getDate() === day &&
                   selectedSlot?.date.getMonth() === currentMonth.getMonth();
                 
-                // Determine visual state based on DB availability
                 const isFullyBooked = !isSlotAvailable(day, 'day') && !isSlotAvailable(day, 'night');
 
                 return (
@@ -216,109 +228,108 @@ export function BookingCalendar() {
 
           {/* Right: Booking Panel */}
           <div className="space-y-5 md:space-y-6">
-            {selectedSlot ? (
+            {!selectedSlot ? (
+              <div className="bg-white rounded-3xl p-6 md:p-10 text-center border-2 border-dashed border-gray-200 min-h-[300px] md:min-h-[400px] flex items-center justify-center">
+                <div>
+                  <CalendarCheck className="w-12 h-12 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" />
+                  <p className="text-gray-500 text-base md:text-lg">Select a date from the calendar to continue</p>
+                </div>
+              </div>
+            ) : checkoutStep === 1 ? (
+              /* STEP 1: Date & Slot Selection */
               <>
-                {/* Selected Date */}
                 <div className="bg-white rounded-3xl shadow-lg p-5 md:p-6 border border-gray-100">
                   <div className="flex items-center gap-3 mb-3 md:mb-4">
                     <CalendarCheck className="w-5 h-5 text-green-800" />
                     <h4 className="font-medium text-gray-900">Selected Date</h4>
                   </div>
                   <p className="text-base md:text-lg text-gray-700">
-                    {selectedSlot.date.toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
+                    {selectedSlot.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                   </p>
                 </div>
 
-                {/* Slot Selection - Radio Style */}
                 <div className="bg-white rounded-3xl shadow-lg p-5 md:p-6 border border-gray-100">
                   <h4 className="font-medium text-gray-900 mb-3 md:mb-4">Select Time Slot</h4>
-
                   <div className="space-y-3">
-                    {/* Day Out Radio */}
-                    <label
-                      className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                        selectedSlot.type === 'day'
-                          ? 'border-green-800 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      } ${!isSlotAvailable(selectedSlot.date.getDate(), 'day') ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <input
-                        type="radio"
-                        name="slot"
-                        checked={selectedSlot.type === 'day'}
-                        onChange={() => setSelectedSlot({ ...selectedSlot, type: 'day' })}
-                        disabled={!isSlotAvailable(selectedSlot.date.getDate(), 'day')}
-                        className="w-4 h-4 md:w-5 md:h-5 text-green-800 focus:ring-green-800 flex-shrink-0"
-                      />
+                    <label className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedSlot.type === 'day' ? 'border-green-800 bg-green-50' : 'border-gray-200 hover:border-gray-300'} ${!isSlotAvailable(selectedSlot.date.getDate(), 'day') ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                      <input type="radio" name="slot" checked={selectedSlot.type === 'day'} onChange={() => setSelectedSlot({ ...selectedSlot, type: 'day' })} disabled={!isSlotAvailable(selectedSlot.date.getDate(), 'day')} className="w-4 h-4 md:w-5 md:h-5 text-green-800 focus:ring-green-800 flex-shrink-0" />
                       <Sun className="w-5 h-5 text-amber-600 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 text-sm md:text-base truncate">Day Out</p>
                         <p className="text-xs md:text-sm text-gray-600 truncate">9:30 AM - 5:30 PM</p>
                       </div>
-                      <span className={`text-xs md:text-sm font-medium flex-shrink-0 ${
-                        isSlotAvailable(selectedSlot.date.getDate(), 'day')
-                          ? 'text-green-700'
-                          : 'text-gray-500'
-                      }`}>
+                      <span className={`text-xs md:text-sm font-medium flex-shrink-0 ${isSlotAvailable(selectedSlot.date.getDate(), 'day') ? 'text-green-700' : 'text-gray-500'}`}>
                         {isSlotAvailable(selectedSlot.date.getDate(), 'day') ? 'Available' : 'Booked'}
                       </span>
                     </label>
 
-                    {/* Night Stay Radio */}
-                    <label
-                      className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                        selectedSlot.type === 'night'
-                          ? 'border-green-800 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      } ${!isSlotAvailable(selectedSlot.date.getDate(), 'night') ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <input
-                        type="radio"
-                        name="slot"
-                        checked={selectedSlot.type === 'night'}
-                        onChange={() => setSelectedSlot({ ...selectedSlot, type: 'night' })}
-                        disabled={!isSlotAvailable(selectedSlot.date.getDate(), 'night')}
-                        className="w-4 h-4 md:w-5 md:h-5 text-green-800 focus:ring-green-800 flex-shrink-0"
-                      />
+                    <label className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedSlot.type === 'night' ? 'border-green-800 bg-green-50' : 'border-gray-200 hover:border-gray-300'} ${!isSlotAvailable(selectedSlot.date.getDate(), 'night') ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                      <input type="radio" name="slot" checked={selectedSlot.type === 'night'} onChange={() => setSelectedSlot({ ...selectedSlot, type: 'night' })} disabled={!isSlotAvailable(selectedSlot.date.getDate(), 'night')} className="w-4 h-4 md:w-5 md:h-5 text-green-800 focus:ring-green-800 flex-shrink-0" />
                       <Moon className="w-5 h-5 text-indigo-600 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 text-sm md:text-base truncate">Night Stay</p>
                         <p className="text-xs md:text-sm text-gray-600 truncate">6:30 PM - 9:00 AM</p>
                       </div>
-                      <span className={`text-xs md:text-sm font-medium flex-shrink-0 ${
-                        isSlotAvailable(selectedSlot.date.getDate(), 'night')
-                          ? 'text-green-700'
-                          : 'text-gray-500'
-                      }`}>
+                      <span className={`text-xs md:text-sm font-medium flex-shrink-0 ${isSlotAvailable(selectedSlot.date.getDate(), 'night') ? 'text-green-700' : 'text-gray-500'}`}>
                         {isSlotAvailable(selectedSlot.date.getDate(), 'night') ? 'Available' : 'Booked'}
                       </span>
                     </label>
                   </div>
                 </div>
 
-                {/* Guest Count */}
                 <div className="bg-white rounded-3xl shadow-lg p-5 md:p-6 border border-gray-100">
                   <label className="flex items-center gap-3 mb-3 font-medium text-gray-900">
-                    <Users className="w-5 h-5 text-green-800" />
-                    Number of People (1-15)
+                    <Users className="w-5 h-5 text-green-800 " /> Number of People (1-15)
                   </label>
-                  <select
-                    value={guestCount}
-                    onChange={(e) => setGuestCount(Number(e.target.value))}
-                    className="w-full px-3 py-2.5 md:px-4 md:py-3 border-2 border-gray-200 rounded-xl focus:border-green-800 focus:outline-none text-base md:text-lg"
-                  >
+                  <select value={guestCount} onChange={(e) => setGuestCount(Number(e.target.value))} className="w-full px-3 py-2.5 md:px-4 md:py-3 border-2 border-gray-200 rounded-xl focus:border-green-800 focus:outline-none text-base md:text-lg bg-white text-gray-900">
                     {Array.from({ length: 15 }, (_, i) => i + 1).map(num => (
                       <option key={num} value={num}>{num} {num === 1 ? 'Guest' : 'Guests'}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Payment Summary */}
+                <button
+                  onClick={() => setCheckoutStep(2)}
+                  disabled={guestCount < 1 || guestCount > 15 || !isSlotAvailable(selectedSlot.date.getDate(), selectedSlot.type)}
+                  className="w-full bg-green-800 hover:bg-green-900 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 md:py-4 rounded-2xl font-semibold text-base md:text-lg transition-colors shadow-lg"
+                >
+                  Proceed to Details
+                </button>
+              </>
+            ) : (
+              /* STEP 2: Customer Details & Payment Checkout */
+              <>
+                <div className="bg-white rounded-3xl shadow-lg p-5 md:p-6 border border-gray-100">
+                  <button onClick={() => setCheckoutStep(1)} className="flex items-center text-gray-500 hover:text-green-800 mb-5 transition-colors font-medium">
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Back to Calendar
+                  </button>
+                  <div className="bg-stone-50 rounded-2xl p-4 mb-2">
+                    <h4 className="font-medium text-gray-900 mb-1">Booking Summary</h4>
+                    <p className="text-sm md:text-base text-gray-600">
+                      {selectedSlot.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} • {selectedSlot.type === 'day' ? 'Day Out' : 'Night Stay'} • {guestCount} Guests
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl shadow-lg p-5 md:p-6 border border-gray-100">
+                  <h4 className="font-medium text-gray-900 mb-4 md:mb-5">Guest Details</h4>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="flex items-center gap-2 mb-2 text-sm font-medium "><User className="w-4 h-4 text-green-800"/> Full Name</label>
+                     <input type="text" required value={customerDetails.name} onChange={e => setCustomerDetails({...customerDetails, name: e.target.value})} className="w-full px-4 py-3 bg-white text-gray-900 rounded-xl border-2 border-gray-200 focus:border-green-800 focus:outline-none transition-colors" placeholder="e.g. John Doe" />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2 mb-2 text-sm font-medium text-gray-700"><Mail className="w-4 h-4 text-green-800"/> Email Address</label>
+                      <input type="email" required value={customerDetails.email} onChange={e => setCustomerDetails({...customerDetails, email: e.target.value})} className="w-full px-4 py-3 bg-white text-gray-900 rounded-xl border-2 border-gray-200 focus:border-green-800 focus:outline-none transition-colors" placeholder="e.g. john@example.com" />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2 mb-2 text-sm font-medium text-gray-700"><Phone className="w-4 h-4 text-green-800"/> Phone Number</label>
+                     <input type="tel" required value={customerDetails.phone} onChange={e => setCustomerDetails({...customerDetails, phone: e.target.value})} className="w-full px-4 py-3 bg-white text-gray-900 rounded-xl border-2 border-gray-200 focus:border-green-800 focus:outline-none transition-colors" placeholder="e.g. +91 98765 43210" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Final Payment Panel (Advance hardcoded for now) */}
                 <div className="bg-gradient-to-br from-green-800 to-green-900 rounded-3xl shadow-xl p-5 md:p-6 text-white">
                   <h4 className="font-medium mb-3 md:mb-4 text-white/90">Payment Summary</h4>
                   <div className="space-y-3 mb-5 md:mb-6">
@@ -340,20 +351,13 @@ export function BookingCalendar() {
 
                   <button
                     onClick={handleCheckout}
-                    disabled={guestCount < 1 || guestCount > 15 || !isSlotAvailable(selectedSlot.date.getDate(), selectedSlot.type)}
+                    disabled={!isFormValid}
                     className="w-full bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-green-900 py-3 md:py-4 rounded-2xl font-semibold text-base md:text-lg transition-colors shadow-lg"
                   >
-                    Pay ₹1,500 Advance to Book
+                    Proceed to Payment
                   </button>
                 </div>
               </>
-            ) : (
-              <div className="bg-white rounded-3xl p-6 md:p-10 text-center border-2 border-dashed border-gray-200 min-h-[300px] md:min-h-[400px] flex items-center justify-center">
-                <div>
-                  <CalendarCheck className="w-12 h-12 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" />
-                  <p className="text-gray-500 text-base md:text-lg">Select a date from the calendar to continue</p>
-                </div>
-              </div>
             )}
           </div>
         </div>
