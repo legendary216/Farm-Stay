@@ -1,11 +1,21 @@
 "use client";
 
-import { useState, useMemo } from 'react';
-import { Search, Download, Users, Calendar, UserCheck, Mail, Phone, CalendarDays } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, Download, Users, Calendar, UserCheck, Mail, Phone, CalendarDays, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 // 1. Type Definitions
-interface Guest {
+interface Booking {
   id: string;
+  guest_name: string;
+  guest_email: string | null;
+  guest_phone: string;
+  booking_date: string;
+  status: string;
+}
+
+interface Guest {
+  id: string; // We will use their phone number as their unique CRM ID
   name: string;
   email: string;
   phone: string;
@@ -13,65 +23,77 @@ interface Guest {
   lastVisit: string;
 }
 
-// 2. Mock Data (Engineered to match your exact KPI screenshot: 5 Guests, 11 Bookings, 3 Repeat)
-const initialGuests: Guest[] = [
-  {
-    id: 'GST-001',
-    name: 'Rajesh Kumar',
-    email: 'rajesh.kumar@email.com',
-    phone: '+91 98765 43210',
-    totalBookings: 3,
-    lastVisit: 'May 25, 2026',
-  },
-  {
-    id: 'GST-002',
-    name: 'Priya Sharma',
-    email: 'priya.sharma@email.com',
-    phone: '+91 98765 43211',
-    totalBookings: 2,
-    lastVisit: 'May 26, 2026',
-  },
-  {
-    id: 'GST-003',
-    name: 'Amit Patel',
-    email: 'amit.patel@email.com',
-    phone: '+91 98765 43212',
-    totalBookings: 1,
-    lastVisit: 'May 27, 2026',
-  },
-  {
-    id: 'GST-004',
-    name: 'Sunita Verma',
-    email: 'sunita.v@email.com',
-    phone: '+91 98765 43213',
-    totalBookings: 4,
-    lastVisit: 'Jun 02, 2026',
-  },
-  {
-    id: 'GST-005',
-    name: 'Vikram Singh',
-    email: 'vikram.s@email.com',
-    phone: '+91 98765 43214',
-    totalBookings: 1,
-    lastVisit: 'Jun 05, 2026',
-  }
-];
-
 export default function GuestDirectory() {
+  const supabase = createClient();
+  
+  const [guests, setGuests] = useState<Guest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 3. Search & Filter Engine
+  // --- DATABASE FETCH & AGGREGATION ENGINE ---
+  useEffect(() => {
+    fetchAndAggregateGuests();
+  }, []);
+
+  const fetchAndAggregateGuests = async () => {
+    setIsLoading(true);
+
+    // 1. Fetch all non-cancelled bookings, ordered newest first
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, guest_name, guest_email, guest_phone, booking_date, status')
+      .neq('status', 'CANCELLED')
+      .order('booking_date', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching CRM data:", error);
+      setIsLoading(false);
+      return;
+    }
+
+    if (data) {
+      // 2. The Aggregation Engine (Group by Phone Number)
+      const guestMap = new Map<string, Guest>();
+
+      data.forEach((booking: Booking) => {
+        const phone = booking.guest_phone;
+
+        if (!guestMap.has(phone)) {
+          // First time seeing this phone number (which is their newest booking due to the SQL order)
+          guestMap.set(phone, {
+            id: phone,
+            name: booking.guest_name,
+            email: booking.guest_email || 'No email provided',
+            phone: phone,
+            totalBookings: 1,
+            lastVisit: booking.booking_date,
+          });
+        } else {
+          // We have seen this guest before, just increment their lifetime booking count
+          const existingGuest = guestMap.get(phone)!;
+          existingGuest.totalBookings += 1;
+        }
+      });
+
+      // Convert the Map back to a clean array for React to render
+      setGuests(Array.from(guestMap.values()));
+    }
+    
+    setIsLoading(false);
+  };
+
+  // --- SEARCH & FILTER ENGINE ---
   const filteredGuests = useMemo(() => {
     const query = searchQuery.toLowerCase();
-    return initialGuests.filter(
+    return guests.filter(
       (guest) =>
         guest.name.toLowerCase().includes(query) ||
         guest.email.toLowerCase().includes(query) ||
         guest.phone.includes(query)
     );
-  }, [searchQuery]);
+  }, [guests, searchQuery]);
 
-  // 4. Mathematical KPI Engine
+  // --- MATHEMATICAL KPI ENGINE ---
   const kpis = useMemo(() => {
     return {
       totalGuests: filteredGuests.length,
@@ -80,20 +102,16 @@ export default function GuestDirectory() {
     };
   }, [filteredGuests]);
 
-  // 5. CSV Export Logic (Client-side generation)
+  // --- CSV EXPORT LOGIC ---
   const handleExportCSV = () => {
-    // Define the headers
     const headers = ['Name', 'Email', 'Phone', 'Total Bookings', 'Last Visit'];
     
-    // Map the data into CSV format
     const csvData = filteredGuests.map(
       (g) => `"${g.name}","${g.email}","${g.phone}",${g.totalBookings},"${g.lastVisit}"`
     );
     
-    // Combine headers and data
     const csvContent = [headers.join(','), ...csvData].join('\n');
     
-    // Create a Blob and trigger download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -107,7 +125,6 @@ export default function GuestDirectory() {
     document.body.removeChild(link);
   };
 
-  // Helper to extract initials for the avatar (e.g., "Rajesh Kumar" -> "RK")
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -116,6 +133,20 @@ export default function GuestDirectory() {
       .toUpperCase()
       .substring(0, 2);
   };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+        <Loader2 className="w-8 h-8 text-green-800 animate-spin" />
+        <p className="text-gray-500 font-medium">Aggregating guest history...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
@@ -128,7 +159,8 @@ export default function GuestDirectory() {
         </div>
         <button
           onClick={handleExportCSV}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#0b6b3a] hover:bg-[#095930] text-white rounded-xl font-medium transition-colors shadow-sm w-fit"
+          disabled={guests.length === 0}
+          className="flex items-center gap-2 px-5 py-2.5 bg-green-800 hover:bg-green-900 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors shadow-sm w-fit"
         >
           <Download className="w-4 h-4" />
           Export to CSV
@@ -144,11 +176,11 @@ export default function GuestDirectory() {
             placeholder="Search by name, email, or phone..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:border-[#0b6b3a] focus:ring-1 focus:ring-[#0b6b3a] focus:outline-none transition-all"
+            className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:border-green-800 focus:ring-1 focus:ring-green-800 focus:outline-none transition-all"
           />
         </div>
         <p className="text-sm text-gray-500 mt-4">
-          Showing {filteredGuests.length} of {initialGuests.length} guests
+          Showing {filteredGuests.length} of {guests.length} unique guests
         </p>
       </div>
 
@@ -165,7 +197,7 @@ export default function GuestDirectory() {
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-12 h-12 bg-green-50 text-[#0b6b3a] rounded-xl flex items-center justify-center">
+          <div className="w-12 h-12 bg-green-50 text-green-800 rounded-xl flex items-center justify-center">
             <Calendar className="w-6 h-6" />
           </div>
           <div>
@@ -192,10 +224,10 @@ export default function GuestDirectory() {
             
             {/* Card Header */}
             <div className="flex items-center justify-between mb-6">
-              <div className="w-12 h-12 bg-[#0b6b3a] text-white rounded-full flex items-center justify-center font-semibold text-lg tracking-wide">
+              <div className="w-12 h-12 bg-green-800 text-white rounded-full flex items-center justify-center font-semibold text-lg tracking-wide">
                 {getInitials(guest.name)}
               </div>
-              <div className="px-3 py-1 bg-green-50 text-[#0b6b3a] text-xs font-medium rounded-full border border-green-100">
+              <div className="px-3 py-1 bg-green-50 text-green-800 text-xs font-medium rounded-full border border-green-100">
                 {guest.totalBookings} {guest.totalBookings === 1 ? 'booking' : 'bookings'}
               </div>
             </div>
@@ -214,7 +246,7 @@ export default function GuestDirectory() {
               </div>
               <div className="flex items-center gap-3 text-sm text-gray-600">
                 <CalendarDays className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                <span>Last visit: {guest.lastVisit}</span>
+                <span>Last visit: {formatDate(guest.lastVisit)}</span>
               </div>
             </div>
 

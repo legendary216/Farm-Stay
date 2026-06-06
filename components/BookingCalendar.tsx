@@ -1,13 +1,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { ChevronLeft, ChevronRight, Sun, Moon, Users, CalendarCheck, ArrowLeft, User, Mail, Phone } from 'lucide-react';
-
-// Initialize Supabase client using environment variables
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { createClient } from '@/lib/supabase/client';
+import { ChevronLeft, ChevronRight, Sun, Moon, Users, CalendarCheck, ArrowLeft, User, Mail, Phone, Loader2 } from 'lucide-react';
 
 type SlotType = 'day' | 'night';
 
@@ -22,12 +17,16 @@ interface SelectedSlot {
 }
 
 export function BookingCalendar() {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const supabase = createClient();
+
+  const [currentMonth, setCurrentMonth] = useState(new Date('2026-06-01'));
+  const [isClient, setIsClient] = useState(false);
+  
   const [selectedSlot, setSelectedSlot] = useState<SelectedSlot | null>(null);
   const [guestCount, setGuestCount] = useState(2);
   const [bookedSlots, setBookedSlots] = useState<Record<string, BookingSlot>>({});
+  const [isLoading, setIsLoading] = useState(true);
   
-  // New State for Multi-Step Checkout
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [customerDetails, setCustomerDetails] = useState({
     name: '',
@@ -35,52 +34,70 @@ export function BookingCalendar() {
     phone: ''
   });
 
-  // Fetch live availability from Supabase
   useEffect(() => {
+    setCurrentMonth(new Date()); 
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return;
+
     async function fetchAvailability() {
+      setIsLoading(true);
+      
       const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
       const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
       
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('booking_date, slot_type')
-        .in('payment_status', ['confirmed', 'blocked'])
-        .gte('booking_date', startOfMonth.toISOString().split('T')[0])
-        .lte('booking_date', endOfMonth.toISOString().split('T')[0]);
+      const startStr = startOfMonth.toISOString().split('T')[0];
+      const endStr = endOfMonth.toISOString().split('T')[0];
 
-      if (error) {
-        console.error('Error fetching bookings:', error);
-        return;
-      }
+      const [bookingsRes, blocksRes] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('booking_date, slot_type')
+          .in('status', ['CONFIRMED', 'COMPLETED']) 
+          .gte('booking_date', startStr)
+          .lte('booking_date', endStr),
+        supabase
+          .from('blocked_dates')
+          .select('blocked_date, day_blocked, night_blocked')
+          .gte('blocked_date', startStr)
+          .lte('blocked_date', endStr)
+      ]);
 
-      const activeBookings: Record<string, BookingSlot> = {};
+      const activeSlots: Record<string, BookingSlot> = {};
       
-      if (data) {
-        data.forEach((row) => {
+      if (bookingsRes.data) {
+        bookingsRes.data.forEach((row) => {
           const dateStr = row.booking_date;
-          if (!activeBookings[dateStr]) {
-            activeBookings[dateStr] = { day: false, night: false };
-          }
-          if (row.slot_type === 'day_out') activeBookings[dateStr].day = true;
-          if (row.slot_type === 'night_stay') activeBookings[dateStr].night = true;
+          if (!activeSlots[dateStr]) activeSlots[dateStr] = { day: false, night: false };
+          if (row.slot_type === 'Day Out') activeSlots[dateStr].day = true; 
+          if (row.slot_type === 'Night Stay') activeSlots[dateStr].night = true; 
         });
       }
       
-      setBookedSlots(activeBookings);
+      if (blocksRes.data) {
+        blocksRes.data.forEach((row) => {
+          const dateStr = row.blocked_date;
+          if (!activeSlots[dateStr]) activeSlots[dateStr] = { day: false, night: false };
+          if (row.day_blocked) activeSlots[dateStr].day = true;
+          if (row.night_blocked) activeSlots[dateStr].night = true;
+        });
+      }
+      
+      setBookedSlots(activeSlots);
+      setIsLoading(false);
     }
 
     fetchAvailability();
-  }, [currentMonth]);
+  }, [currentMonth, isClient]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    return { daysInMonth, startingDayOfWeek };
+    return { daysInMonth: lastDay.getDate(), startingDayOfWeek: firstDay.getDay() };
   };
 
   const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentMonth);
@@ -88,13 +105,13 @@ export function BookingCalendar() {
   const previousMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
     setSelectedSlot(null);
-    setCheckoutStep(1); // Reset step if month changes
+    setCheckoutStep(1);
   };
 
   const nextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
     setSelectedSlot(null);
-    setCheckoutStep(1); // Reset step if month changes
+    setCheckoutStep(1);
   };
 
   const isDatePast = (day: number) => {
@@ -121,7 +138,7 @@ export function BookingCalendar() {
     const defaultSlot: SlotType = !booking?.day ? 'day' : !booking?.night ? 'night' : 'day';
 
     setSelectedSlot({ date, type: defaultSlot });
-    setCheckoutStep(1); // Ensure we go back to step 1 if selecting a new date
+    setCheckoutStep(1);
   };
 
   const isSlotAvailable = (day: number, slot: SlotType): boolean => {
@@ -137,7 +154,6 @@ export function BookingCalendar() {
 
   const handleCheckout = () => {
     if (!selectedSlot || !isFormValid) return;
-
     alert(`Redirecting to payment gateway...\n\nName: ${customerDetails.name}\nEmail: ${customerDetails.email}\nPhone: ${customerDetails.phone}\nDate: ${selectedSlot.date.toLocaleDateString()}\nSlot: ${selectedSlot.type === 'day' ? 'Day Out' : 'Night Stay'}\nGuests: ${guestCount}\nAmount to Pay: ₹1,500 (Advance)`);
   };
 
@@ -148,10 +164,11 @@ export function BookingCalendar() {
 
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+  if (!isClient) return null; 
+
   return (
     <div className="py-16 md:py-24 px-4 md:px-6 bg-stone-50">
       <div className="max-w-7xl mx-auto">
-        {/* Title */}
         <div className="text-center mb-10 md:mb-16">
           <h2 className="text-3xl md:text-5xl lg:text-6xl text-gray-900 mb-3 md:mb-4 font-light tracking-tight">
             Check Availability
@@ -160,28 +177,22 @@ export function BookingCalendar() {
         </div>
 
         <div className="grid lg:grid-cols-[1.4fr_1fr] gap-8 lg:gap-10">
+          
           {/* Left: Calendar */}
-          <div className="bg-white rounded-3xl shadow-lg p-5 md:p-8 border border-gray-100">
-            {/* Month Navigation */}
+          <div className="bg-white rounded-3xl shadow-lg p-5 md:p-8 border border-gray-100 h-fit">
             <div className="flex items-center justify-between mb-6 md:mb-8">
-              <button
-                onClick={previousMonth}
-                className="p-2 md:p-2.5 hover:bg-stone-50 rounded-xl transition-colors"
-              >
+              <button onClick={previousMonth} className="p-2 md:p-2.5 hover:bg-stone-50 rounded-xl transition-colors">
                 <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
               </button>
-              <h3 className="text-xl md:text-2xl font-medium text-gray-900">
+              <h3 className="text-xl md:text-2xl font-medium text-gray-900 flex items-center gap-2">
                 {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                {isLoading && <Loader2 className="w-4 h-4 text-green-800 animate-spin" />}
               </h3>
-              <button
-                onClick={nextMonth}
-                className="p-2 md:p-2.5 hover:bg-stone-50 rounded-xl transition-colors"
-              >
+              <button onClick={nextMonth} className="p-2 md:p-2.5 hover:bg-stone-50 rounded-xl transition-colors">
                 <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
               </button>
             </div>
 
-            {/* Day Names */}
             <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 md:mb-3">
               {dayNames.map(day => (
                 <div key={day} className="text-center font-medium text-gray-500 text-xs md:text-sm py-1 md:py-2">
@@ -191,7 +202,6 @@ export function BookingCalendar() {
               ))}
             </div>
 
-            {/* Calendar Days */}
             <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {Array.from({ length: startingDayOfWeek }).map((_, index) => (
                 <div key={`empty-${index}`} />
@@ -200,10 +210,14 @@ export function BookingCalendar() {
               {Array.from({ length: daysInMonth }).map((_, index) => {
                 const day = index + 1;
                 const isPast = isDatePast(day);
+                
+                // Determine Slot Availability
+                const dayBooked = !isSlotAvailable(day, 'day');
+                const nightBooked = !isSlotAvailable(day, 'night');
+                const isFullyBooked = dayBooked && nightBooked;
+
                 const isSelected = selectedSlot?.date.getDate() === day &&
                   selectedSlot?.date.getMonth() === currentMonth.getMonth();
-                
-                const isFullyBooked = !isSlotAvailable(day, 'day') && !isSlotAvailable(day, 'night');
 
                 return (
                   <button
@@ -211,18 +225,35 @@ export function BookingCalendar() {
                     onClick={() => handleDateClick(day)}
                     disabled={isPast || isFullyBooked}
                     className={`
-                      aspect-square p-1 sm:p-2 md:p-3 rounded-xl text-center transition-all font-medium relative text-sm md:text-base
-                      ${isPast || isFullyBooked ? 'text-gray-300 cursor-not-allowed bg-gray-50' : 'hover:bg-green-50 cursor-pointer text-gray-700'}
-                      ${isSelected ? 'bg-green-800 text-white hover:bg-green-900 shadow-md' : ''}
+                      aspect-square p-1 sm:p-2 md:p-3 rounded-xl flex flex-col items-center justify-center transition-all font-medium relative text-sm md:text-base border-2
+                      ${isSelected ? 'bg-green-800 border-green-800 text-white shadow-md' : 'border-transparent'}
+                      ${isPast || isFullyBooked ? 'text-gray-300 cursor-not-allowed bg-gray-50' : !isSelected ? 'hover:bg-green-50 cursor-pointer text-gray-700' : ''}
                     `}
                   >
-                    {day}
-                    {isFullyBooked && !isPast && (
-                      <span className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-red-400 rounded-full"></span>
+                    <span className={!isPast && !isFullyBooked && (dayBooked || nightBooked) ? "mb-1.5" : ""}>{day}</span>
+                    
+                    {/* Partial Booking Dots */}
+                    {!isPast && !isFullyBooked && (dayBooked || nightBooked) && (
+                      <div className="flex gap-1 absolute bottom-1.5">
+                        {dayBooked && <div className="w-1.5 h-1.5 bg-amber-500 rounded-full"></div>}
+                        {nightBooked && <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div>}
+                      </div>
                     )}
                   </button>
                 );
               })}
+            </div>
+
+            {/* Guest Calendar Legend */}
+            <div className="mt-6 pt-4 border-t border-gray-100 flex flex-wrap gap-4 text-xs md:text-sm justify-center text-gray-500">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                <span>Day Out Booked</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                <span>Night Stay Booked</span>
+              </div>
             </div>
           </div>
 
@@ -236,7 +267,6 @@ export function BookingCalendar() {
                 </div>
               </div>
             ) : checkoutStep === 1 ? (
-              /* STEP 1: Date & Slot Selection */
               <>
                 <div className="bg-white rounded-3xl shadow-lg p-5 md:p-6 border border-gray-100">
                   <div className="flex items-center gap-3 mb-3 md:mb-4">
@@ -297,7 +327,6 @@ export function BookingCalendar() {
                 </button>
               </>
             ) : (
-              /* STEP 2: Customer Details & Payment Checkout */
               <>
                 <div className="bg-white rounded-3xl shadow-lg p-5 md:p-6 border border-gray-100">
                   <button onClick={() => setCheckoutStep(1)} className="flex items-center text-gray-500 hover:text-green-800 mb-5 transition-colors font-medium">
@@ -329,7 +358,6 @@ export function BookingCalendar() {
                   </div>
                 </div>
 
-                {/* Final Payment Panel (Advance hardcoded for now) */}
                 <div className="bg-gradient-to-br from-green-800 to-green-900 rounded-3xl shadow-xl p-5 md:p-6 text-white">
                   <h4 className="font-medium mb-3 md:mb-4 text-white/90">Payment Summary</h4>
                   <div className="space-y-3 mb-5 md:mb-6">

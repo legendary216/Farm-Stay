@@ -1,83 +1,75 @@
 "use client";
 
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Sun, Moon, Ban, Trash2, CalendarCheck, AlertTriangle, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Sun, Moon, Ban, CalendarCheck, AlertTriangle, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
-// 1. Types
+// 1. Types mapped perfectly to Supabase SQL Schema
 export interface BlockedDate {
-  date: string;
-  dayBlocked: boolean;
-  nightBlocked: boolean;
+  id: string;
+  blocked_date: string;
+  day_blocked: boolean;
+  night_blocked: boolean;
   reason: string;
 }
 
 type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
 
-// Upgraded to match the financial data structure
 export interface Booking {
   id: string;
-  guestName: string;
-  guestPhone: string;
-  bookingDate: string;
-  slotType: 'Day Out' | 'Night Stay';
-  guestCount: number;
-  totalAmount: number;
-  paidAmount: number;
+  guest_name: string;
+  guest_phone: string;
+  booking_date: string;
+  slot_type: 'Day Out' | 'Night Stay';
+  guest_count: number;
+  total_amount: number;
+  paid_amount: number;
   status: BookingStatus;
 }
 
-// 2. Mock Data
-const initialBlockedDates: BlockedDate[] = [
-  {
-    date: '2026-06-01',
-    dayBlocked: true,
-    nightBlocked: true,
-    reason: 'Property maintenance',
-  },
-  {
-    date: '2026-06-05',
-    dayBlocked: false,
-    nightBlocked: true,
-    reason: 'Family event',
-  },
-];
-
-const initialBookings: Booking[] = [
-  {
-    id: 'BKG-001',
-    guestName: 'Rahul Sharma',
-    guestPhone: '+91 98765 43210',
-    bookingDate: '2026-06-12',
-    slotType: 'Day Out',
-    guestCount: 4,
-    totalAmount: 4000,
-    paidAmount: 1500,
-    status: 'CONFIRMED',
-  },
-  {
-    id: 'BKG-002',
-    guestName: 'Priya Patel',
-    guestPhone: '+91 91234 56789',
-    bookingDate: '2026-06-15',
-    slotType: 'Night Stay',
-    guestCount: 2,
-    totalAmount: 6000,
-    paidAmount: 6000,
-    status: 'CONFIRMED',
-  }
-];
-
 export default function CalendarManagement() {
-  // State Management
-  const [currentMonth, setCurrentMonth] = useState(new Date('2026-06-01'));
-  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>(initialBlockedDates);
-  const [bookings, setBookings] = useState<Booking[]>(initialBookings);
+  const supabase = createClient();
+
+  // Loading States
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Core Data State
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  
+  // UI State
+ const [currentMonth, setCurrentMonth] = useState(new Date('2026-06-01'));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [blockReason, setBlockReason] = useState('');
   
   // Financial Cancellation Modal State
   const [bookingToCancel, setBookingToCancel] = useState<Booking | null>(null);
   const [refundDecision, setRefundDecision] = useState<'refund' | 'keep' | null>(null);
+
+  // --- DATABASE FETCH LOGIC ---
+  useEffect(() => {
+    setCurrentMonth(new Date());
+    fetchCalendarData();
+  }, []);
+
+  const fetchCalendarData = async () => {
+    setIsLoading(true);
+    
+    // Fetch both tables simultaneously for maximum speed
+    const [bookingsRes, blocksRes] = await Promise.all([
+      supabase.from('bookings').select('*'),
+      supabase.from('blocked_dates').select('*')
+    ]);
+
+    if (bookingsRes.error) console.error("Error fetching bookings:", bookingsRes.error);
+    else if (bookingsRes.data) setBookings(bookingsRes.data as Booking[]);
+
+    if (blocksRes.error) console.error("Error fetching blocks:", blocksRes.error);
+    else if (blocksRes.data) setBlockedDates(blocksRes.data as BlockedDate[]);
+
+    setIsLoading(false);
+  };
 
   // Calendar Math
   const getDaysInMonth = (date: Date) => {
@@ -109,56 +101,98 @@ export default function CalendarManagement() {
   };
 
   // Data Merging Engines
-  const getBlockedStatus = (dateKey: string) => blockedDates.find((b) => b.date === dateKey);
-  const getActiveBookings = (dateKey: string) => bookings.filter((b) => b.bookingDate === dateKey && b.status !== 'CANCELLED');
+  const getBlockedStatus = (dateKey: string) => blockedDates.find((b) => b.blocked_date === dateKey);
+  const getActiveBookings = (dateKey: string) => bookings.filter((b) => b.booking_date === dateKey && b.status !== 'CANCELLED');
 
-  // Administrative Blocking Logic
-  const blockSlot = (slotType: 'day' | 'night' | 'both') => {
+  // --- DATABASE MUTATION LOGIC ---
+
+  const blockSlot = async (slotType: 'day' | 'night' | 'both') => {
     if (!selectedDate || !blockReason.trim()) return;
-    const existingBlock = blockedDates.find((b) => b.date === selectedDate);
+    setIsProcessing(true);
+
+    const existingBlock = blockedDates.find((b) => b.blocked_date === selectedDate);
+    
+    const day_blocked = slotType === 'both' || slotType === 'day' ? true : existingBlock?.day_blocked || false;
+    const night_blocked = slotType === 'both' || slotType === 'night' ? true : existingBlock?.night_blocked || false;
 
     if (existingBlock) {
-      setBlockedDates(blockedDates.map((b) =>
-        b.date === selectedDate ? {
-          ...b,
-          dayBlocked: slotType === 'both' || slotType === 'day' ? true : b.dayBlocked,
-          nightBlocked: slotType === 'both' || slotType === 'night' ? true : b.nightBlocked,
-          reason: blockReason,
-        } : b
-      ));
+      // Update existing block
+      const { error } = await supabase
+        .from('blocked_dates')
+        .update({ day_blocked, night_blocked, reason: blockReason })
+        .eq('id', existingBlock.id);
+
+      if (!error) {
+        setBlockedDates(prev => prev.map(b => b.id === existingBlock.id ? { ...b, day_blocked, night_blocked, reason: blockReason } : b));
+      }
     } else {
-      setBlockedDates([...blockedDates, {
-        date: selectedDate,
-        dayBlocked: slotType === 'both' || slotType === 'day',
-        nightBlocked: slotType === 'both' || slotType === 'night',
-        reason: blockReason,
-      }]);
+      // Insert new block
+      const { data, error } = await supabase
+        .from('blocked_dates')
+        .insert({ blocked_date: selectedDate, day_blocked, night_blocked, reason: blockReason })
+        .select()
+        .single();
+
+      if (!error && data) {
+        setBlockedDates(prev => [...prev, data as BlockedDate]);
+      }
     }
+    
+    setIsProcessing(false);
     setBlockReason('');
   };
 
-  const unblockDate = (dateKey: string) => {
-    setBlockedDates(blockedDates.filter((b) => b.date !== dateKey));
+  const unblockDate = async (dateKey: string) => {
+    const existingBlock = blockedDates.find((b) => b.blocked_date === dateKey);
+    if (!existingBlock) return;
+
+    setIsProcessing(true);
+    const { error } = await supabase
+      .from('blocked_dates')
+      .delete()
+      .eq('id', existingBlock.id);
+
+    if (!error) {
+      setBlockedDates(prev => prev.filter((b) => b.id !== existingBlock.id));
+    }
+    setIsProcessing(false);
   };
 
-  // Financial Cancellation Logic
-  const confirmCancellation = () => {
+  const confirmCancellation = async () => {
     if (!bookingToCancel || !refundDecision) return;
-    
-    setBookings(currentBookings => 
-      currentBookings.map(b => b.id === bookingToCancel.id ? { 
+    setIsProcessing(true);
+
+    const finalPaidAmount = refundDecision === 'refund' ? 0 : bookingToCancel.paid_amount;
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: 'CANCELLED', paid_amount: finalPaidAmount })
+      .eq('id', bookingToCancel.id);
+
+    if (!error) {
+      setBookings(prev => prev.map(b => b.id === bookingToCancel.id ? { 
         ...b, 
         status: 'CANCELLED',
-        paidAmount: refundDecision === 'refund' ? 0 : b.paidAmount
-      } : b)
-    );
+        paid_amount: finalPaidAmount
+      } : b));
+    }
     
+    setIsProcessing(false);
     setBookingToCancel(null);
     setRefundDecision(null);
   };
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+        <Loader2 className="w-8 h-8 text-green-800 animate-spin" />
+        <p className="text-gray-500 font-medium">Loading calendar grid...</p>
+      </div>
+    );
+  }
 
   const selectedBlockedDate = selectedDate ? getBlockedStatus(selectedDate) : null;
   const selectedDateBookings = selectedDate ? getActiveBookings(selectedDate) : [];
@@ -172,13 +206,12 @@ export default function CalendarManagement() {
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
             <h3 className="text-xl font-medium text-gray-900 mb-2">Cancel Booking</h3>
             <p className="text-gray-600 mb-6 text-sm">
-              You are cancelling the booking for <span className="font-semibold text-gray-900">{bookingToCancel.guestName}</span>. 
-              They have currently paid <span className="font-semibold text-gray-900">₹{bookingToCancel.paidAmount.toLocaleString('en-IN')}</span>. 
+              You are cancelling the booking for <span className="font-semibold text-gray-900">{bookingToCancel.guest_name}</span>. 
+              They have currently paid <span className="font-semibold text-gray-900">₹{Number(bookingToCancel.paid_amount).toLocaleString('en-IN')}</span>. 
               Please select how to handle their payment.
             </p>
             
             <div className="space-y-3 mb-8">
-              {/* Option 1: Refund */}
               <button 
                 onClick={() => setRefundDecision('refund')}
                 className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
@@ -188,10 +221,9 @@ export default function CalendarManagement() {
                 }`}
               >
                 <div className="font-medium text-gray-900 mb-1">Refund Payment</div>
-                <div className="text-xs text-gray-500">Return ₹{bookingToCancel.paidAmount.toLocaleString('en-IN')} to the guest. Revenue will be deducted.</div>
+                <div className="text-xs text-gray-500">Return ₹{Number(bookingToCancel.paid_amount).toLocaleString('en-IN')} to the guest. Revenue will be deducted.</div>
               </button>
 
-              {/* Option 2: No Refund */}
               <button 
                 onClick={() => setRefundDecision('keep')}
                 className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
@@ -201,22 +233,24 @@ export default function CalendarManagement() {
                 }`}
               >
                 <div className="font-medium text-gray-900 mb-1">No Refund (Penalty)</div>
-                <div className="text-xs text-gray-500">Keep ₹{bookingToCancel.paidAmount.toLocaleString('en-IN')}. Revenue will remain in the system.</div>
+                <div className="text-xs text-gray-500">Keep ₹{Number(bookingToCancel.paid_amount).toLocaleString('en-IN')}. Revenue will remain in the system.</div>
               </button>
             </div>
             
             <div className="flex gap-3 justify-end">
               <button 
                 onClick={() => { setBookingToCancel(null); setRefundDecision(null); }}
-                className="px-5 py-2.5 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                disabled={isProcessing}
+                className="px-5 py-2.5 rounded-xl font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 transition-colors"
               >
                 Go Back
               </button>
               <button 
                 onClick={confirmCancellation}
-                disabled={!refundDecision}
-                className="px-5 py-2.5 rounded-xl font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+                disabled={!refundDecision || isProcessing}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-sm"
               >
+                {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
                 Confirm Cancellation
               </button>
             </div>
@@ -278,8 +312,8 @@ export default function CalendarManagement() {
                   {/* Status Indicators */}
                   <div className="flex justify-center gap-1 h-1.5 w-full absolute bottom-2">
                     {hasBookings && <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>}
-                    {blockedStatus?.dayBlocked && <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>}
-                    {blockedStatus?.nightBlocked && <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div>}
+                    {blockedStatus?.day_blocked && <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>}
+                    {blockedStatus?.night_blocked && <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div>}
                   </div>
                 </button>
               );
@@ -319,9 +353,9 @@ export default function CalendarManagement() {
                     <div key={booking.id} className="p-4 bg-green-50/50 rounded-xl border border-green-100">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-medium text-gray-900">{booking.guestName}</p>
-                          <p className="text-sm text-gray-600">{booking.slotType} • {booking.guestCount} Guests</p>
-                          <p className="text-xs text-gray-500 mt-1">{booking.guestPhone}</p>
+                          <p className="font-medium text-gray-900">{booking.guest_name}</p>
+                          <p className="text-sm text-gray-600">{booking.slot_type} • {booking.guest_count} Guests</p>
+                          <p className="text-xs text-gray-500 mt-1">{booking.guest_phone}</p>
                         </div>
                         <button 
                           onClick={() => setBookingToCancel(booking)}
@@ -345,7 +379,13 @@ export default function CalendarManagement() {
                         <Ban className="w-4 h-4 text-red-600" />
                         <span className="font-medium text-red-900 text-sm">Currently Blocked</span>
                       </div>
-                      <button onClick={() => unblockDate(selectedDate)} className="text-red-600 hover:text-red-800 text-sm font-medium">Remove</button>
+                      <button 
+                        onClick={() => unblockDate(selectedDate)} 
+                        disabled={isProcessing}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50"
+                      >
+                        {isProcessing && <Loader2 className="w-3 h-3 animate-spin" />} Remove
+                      </button>
                     </div>
                     <p className="text-sm text-red-600/80">Reason: {selectedBlockedDate.reason}</p>
                   </div>
@@ -359,15 +399,15 @@ export default function CalendarManagement() {
                       className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-green-800 focus:outline-none text-sm"
                     />
                     <div className="grid grid-cols-2 gap-3">
-                      <button onClick={() => blockSlot('day')} disabled={!blockReason.trim()} className="flex items-center justify-center gap-2 p-2.5 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-medium">
-                        <Sun className="w-4 h-4" /> Day
+                      <button onClick={() => blockSlot('day')} disabled={!blockReason.trim() || isProcessing} className="flex items-center justify-center gap-2 p-2.5 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-medium">
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sun className="w-4 h-4" />} Day
                       </button>
-                      <button onClick={() => blockSlot('night')} disabled={!blockReason.trim()} className="flex items-center justify-center gap-2 p-2.5 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-medium">
-                        <Moon className="w-4 h-4" /> Night
+                      <button onClick={() => blockSlot('night')} disabled={!blockReason.trim() || isProcessing} className="flex items-center justify-center gap-2 p-2.5 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-medium">
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Moon className="w-4 h-4" />} Night
                       </button>
                     </div>
-                    <button onClick={() => blockSlot('both')} disabled={!blockReason.trim()} className="w-full p-2.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white rounded-xl text-sm font-medium">
-                      Block Entire Day
+                    <button onClick={() => blockSlot('both')} disabled={!blockReason.trim() || isProcessing} className="flex items-center justify-center gap-2 w-full p-2.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white rounded-xl text-sm font-medium">
+                      {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />} Block Entire Day
                     </button>
                   </div>
                 )}
