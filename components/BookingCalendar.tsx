@@ -25,7 +25,7 @@ interface SelectedSlot {
 
 export function BookingCalendar() {
   const supabase = createClient();
-
+const [errorMsg, setErrorMsg] = useState<string | null>(null);
 const [isRedirecting, setIsRedirecting] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date('2026-06-01'));
   const [isClient, setIsClient] = useState(false);
@@ -166,6 +166,7 @@ const [isRedirecting, setIsRedirecting] = useState(false);
                       customerDetails.phone.trim() !== '';
 
   const handleCheckout = async () => {
+    setErrorMsg(null);
     if (!selectedSlot || !isFormValid) return;
     
     setIsProcessingPayment(true);
@@ -236,6 +237,11 @@ const [isRedirecting, setIsRedirecting] = useState(false);
                 setSelectedSlot(null);
                 setCustomerDetails({ name: '', email: '', phone: '' });
                 fetchAvailability();
+                setIsProcessingPayment(false);
+                window.scrollTo({
+    top: 0,
+    behavior: 'smooth' // This gives a nice smooth slide back to the top
+  });
               } else {
                 console.error("Database Insert Error:", error);
                 alert("Payment received, but database sync failed. Please contact support.");
@@ -254,8 +260,11 @@ const [isRedirecting, setIsRedirecting] = useState(false);
       
       rzp1.on('payment.failed', function (response: any) {
         setIsProcessingPayment(false);
-        console.error("Payment Failed:", response.error);
-        alert(`Payment Failed: ${response.error.description}`);
+        console.log("Full Razorpay Error Object:", response.error);
+        const message = response.error.description || 
+                  response.error.reason || 
+                  "Payment failed. Please try again.";
+        setErrorMsg(message);
       });
 
       // Listen for the modal closing without completing payment
@@ -511,7 +520,11 @@ if (isRedirecting) {
                         </label>
                       </div>
                     </div>
-
+{errorMsg && (
+  <div className="p-4 bg-red-50 text-red-700 rounded-xl mb-4 border border-red-200 text-sm">
+    {errorMsg}
+  </div>
+)}
                     <button
                       onClick={handleCheckout}
                       disabled={!isFormValid || isProcessingPayment}
