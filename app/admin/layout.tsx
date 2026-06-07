@@ -2,12 +2,17 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Menu, X, LayoutDashboard, BookOpen, Calendar as CalendarIcon, Users, LogOut, Leaf } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { Menu, X, LayoutDashboard, BookOpen, Calendar as CalendarIcon, Users, LogOut, Leaf, Loader2 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
 
   const navItems = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -15,6 +20,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Calendar', href: '/admin/calendar', icon: CalendarIcon },
     { name: 'Guests', href: '/admin/guests', icon: Users },
   ];
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    
+    // 1. Destroy the secure session in Supabase
+    await supabase.auth.signOut();
+    
+    // 2. Force Next.js to re-evaluate the middleware state
+    router.refresh();
+    
+    // 3. Teleport the user back to the login screen
+    router.push('/auth/login');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -70,10 +88,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           })}
         </nav>
 
+        {/* Secure Sign Out Section */}
         <div className="p-4 border-t border-gray-800">
-          <button className="flex items-center gap-3 px-4 py-3 w-full text-left rounded-xl hover:bg-gray-800 transition-colors">
-            <LogOut className="w-5 h-5" />
-            <span className="font-medium">Sign Out</span>
+          <button 
+            onClick={handleSignOut}
+            disabled={isSigningOut}
+            className="flex items-center gap-3 px-4 py-3 w-full text-left rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSigningOut ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogOut className="w-5 h-5" />}
+            <span className="font-medium">{isSigningOut ? 'Signing out...' : 'Sign Out'}</span>
           </button>
         </div>
       </aside>

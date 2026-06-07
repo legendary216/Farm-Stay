@@ -44,34 +44,44 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: If you remove getClaims() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
- const { data } = await supabase.auth.getClaims();
+  const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
+  // --- 1. DEDICATED ADMIN PROTECTION RULE ---
+  if (request.nextUrl.pathname.startsWith("/admin")) {
+    
+    // Check A: Is the user logged in at all?
+    if (!user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/auth/login";
+      return NextResponse.redirect(url);
+    }
+    
+    // Check B (Future-Proofing): Is this user the actual admin?
+    // Uncomment these lines when you want to lock the dashboard to your specific email address.
+    // const adminEmail = process.env.ADMIN_EMAIL || "your-admin-email@example.com";
+    // if (user.email !== adminEmail) {
+    //   const url = request.nextUrl.clone();
+    //   url.pathname = "/"; // Send unauthorized users back to the public homepage
+    //   return NextResponse.redirect(url);
+    // }
+  }
+
+  // --- 2. GENERAL ROUTING RULE ---
+  // Keeps the original template behavior for your public pages.
+  // We keep the /admin exception here because admin traffic is now strictly handled in block 1.
   if (
     request.nextUrl.pathname !== "/" &&
     !user &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth") &&
-    !request.nextUrl.pathname.startsWith("/admin") // <-- Added exception for Admin Panel
+    !request.nextUrl.pathname.startsWith("/admin") 
   ) {
-    // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
     return NextResponse.redirect(url);
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
-  // If you're creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing
-  //    the cookies!
-  // 4. Finally:
-  //    return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely!
-
   return supabaseResponse;
 }
